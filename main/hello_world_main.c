@@ -11,10 +11,13 @@
 #include "driver/uart.h"
 #include "nvs_flash.h"
 #include "esp_event.h"
+#include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
 #include "mqtt_client.h"
+
+static const char *TAG = "SNIFFER_RECEPTOR";
 
 /* Configuracoes da UART */
 #define UART_PORT          UART_NUM_2
@@ -40,6 +43,39 @@
 static char mac_dispositivo[18];
 static esp_mqtt_client_handle_t cliente_mqtt = NULL;
 static bool tarefa_uart_iniciada = false;
+
+/* Registra a tentativa e o resultado local da publicação MQTT. */
+static int publicar_mensagem_experimental(
+    esp_mqtt_client_handle_t cliente,
+    const char *topico,
+    const char *payload,
+    int qos
+)
+{
+    if (cliente == NULL || topico == NULL || payload == NULL)
+    {
+        ESP_LOGE(TAG, "[EXPERIMENTO][MQTT_ENVIO_FALHA] cliente, topico ou payload nulo");
+        return -1;
+    }
+
+    int mensagem_id = esp_mqtt_client_publish(
+        cliente, topico, payload, 0, qos, 0
+    );
+
+    if (mensagem_id < 0)
+    {
+        ESP_LOGE(TAG, "[EXPERIMENTO][MQTT_ENVIO_FALHA] topico=%s payload=%s",
+                 topico, payload);
+    }
+    else
+    {
+        ESP_LOGI(TAG, "[EXPERIMENTO][MQTT_ENVIO] topico=%s mensagem_id=%d qos=%d payload=%s",
+                 topico, mensagem_id, qos, payload);
+    }
+
+    return mensagem_id;
+}
+
 
 
 /* =========================================================
@@ -236,8 +272,15 @@ static bool validar_json_wifi(const char *json)
 
 static void publicar_dados_wifi(char *json)
 {
-    if (cliente_mqtt == NULL || !validar_json_wifi(json))
+    if (cliente_mqtt == NULL)
     {
+        ESP_LOGE(TAG, "[EXPERIMENTO][MQTT_NAO_CONECTADO] mensagem não publicada");
+        return;
+    }
+
+    if (!validar_json_wifi(json))
+    {
+        ESP_LOGW(TAG, "[EXPERIMENTO][JSON_REJEITADO] mensagem recebida pela UART não passou na validação");
         return;
     }
 
@@ -267,14 +310,7 @@ static void publicar_dados_wifi(char *json)
         return;
     }
 
-    esp_mqtt_client_publish(
-        cliente_mqtt,
-        MQTT_TOPIC,
-        mensagem,
-        0,
-        0,
-        0
-    );
+    publicar_mensagem_experimental(cliente_mqtt, MQTT_TOPIC, mensagem, 0);
 }
 
 
@@ -334,6 +370,8 @@ static void processar_caractere_uart(
 
         /* JSON completo: finaliza e publica. */
         buffer_json[*indice_json] = '\0';
+        ESP_LOGI(TAG, "[EXPERIMENTO][UART_RECEBIDO] bytes=%u payload=%s",
+                 (unsigned int)*indice_json, buffer_json);
         publicar_dados_wifi(buffer_json);
 
         *indice_json = 0;
@@ -576,7 +614,9 @@ static void inicializar_wifi(void)
 
 void app_main(void)
 {
+    ESP_LOGI(TAG, "[EXPERIMENTO][INICIO] inicializando receptor serial");
     obter_mac_dispositivo();
+    ESP_LOGI(TAG, "[EXPERIMENTO][DISPOSITIVO] mac=%s", mac_dispositivo);
     inicializar_uart();
     inicializar_wifi();
 }
