@@ -440,14 +440,7 @@ static void registrar_dispositivo(void)
         mac_dispositivo
     );
 
-    esp_mqtt_client_publish(
-        cliente_mqtt,
-        MQTT_REGISTER_TOPIC,
-        mensagem,
-        0,
-        1,
-        0
-    );
+    publicar_mensagem_experimental(cliente_mqtt, MQTT_REGISTER_TOPIC, mensagem, 1);
 }
 
 
