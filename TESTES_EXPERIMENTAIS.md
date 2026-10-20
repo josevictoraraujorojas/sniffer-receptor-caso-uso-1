@@ -41,3 +41,24 @@ No console do backend do Caso de Uso 1, procure `[EXPERIMENTO][MQTT_RECEBIDO]`, 
 ## Dados a registrar
 
 Em cada repetição, registre quadros enviados pelo sniffer, mensagens recebidas na UART do receptor, publicações no MQTT, mensagens recebidas pelo backend, registros persistidos e falhas. Não confunda o retorno local da função de publicação MQTT com a confirmação da gravação no banco. A persistência é verificada separadamente nos logs do backend e na consulta ao InfluxDB.
+
+
+## Limite do ensaio e salvamento dos logs
+
+O firmware limita o ensaio a 100 mensagens experimentais no fluxo indicado abaixo. Ao alcançar o limite, registra `[EXPERIMENTO][FIM]` e impede novas mensagens experimentais desse fluxo. No sniffer, a unidade é a mensagem JSON enviada pela UART; no receptor, são as mensagens publicadas no tópico `wifi`. O contador local não prova que todas as mensagens chegaram ao broker ou foram persistidas.
+
+Para gravar a saída serial em um arquivo no computador, abra o PowerShell na pasta do projeto e execute (ajuste a porta serial conforme necessário):
+
+```powershell
+idf.py -p COM6 flash monitor 2>&1 | Tee-Object -FilePath experimento-receptor.log
+```
+
+O arquivo `experimento-receptor.log` será criado na pasta atual. Se o firmware já estiver gravado, use `idf.py -p COM6 monitor 2>&1 | Tee-Object -FilePath experimento-receptor.log` para não regravar a placa. Guarde o arquivo de cada execução separadamente e não reutilize o mesmo nome se quiser preservar o ensaio anterior.
+
+Para salvar também as mensagens observadas no broker, em outro PowerShell execute:
+
+```powershell
+mosquitto_sub -h HOST_DO_BROKER -p 1883 -t wifi -v 2>&1 | Tee-Object -FilePath experimento-broker.log
+```
+
+Substitua `HOST_DO_BROKER` pelo host configurado no firmware. O arquivo do broker deve ser separado do log serial.
