@@ -1,53 +1,67 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-H21 | ESP32-H4 | ESP32-P4 | ESP32-S2 | ESP32-S3 | Linux |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | --------- | -------- | --------- | -------- | -------- | -------- | -------- | ----- |
+# Receptor Serial e Publicador MQTT — Caso de Uso 1
 
-# Hello World Example
+Firmware ESP-IDF que recebe do ESP32 sniffer as mensagens JSON de captura Wi-Fi por UART, valida e complementa os dados e os publica por MQTT. É a etapa de integração entre o dispositivo de captura e a aplicação que recebe os dados do primeiro caso de uso do TCC.
 
-Starts a FreeRTOS task to print "Hello World".
+## Objetivo
 
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
+Separar a captura de quadros Wi-Fi da comunicação com o broker MQTT. O ESP32 sniffer fica dedicado à observação dos quadros; este receptor recebe os registros pela serial e encaminha as mensagens para a infraestrutura de software.
 
-## How to use example
+## Fluxo de funcionamento
 
-Follow detailed instructions provided specifically for this example.
+1. Inicializa a UART para receber mensagens do dispositivo sniffer.
+2. Recompõe as mensagens JSON recebidas pelo canal serial.
+3. Valida a presença dos campos necessários, incluindo `cliente` e `bssid`, conforme o formato usado pelo firmware.
+4. Acrescenta o endereço MAC do próprio receptor no campo `macAddress`.
+5. Conecta-se à rede Wi-Fi e publica as mensagens no tópico MQTT `wifi`.
+6. Também pode realizar o registro do dispositivo no tópico `sniffer`, conforme a configuração do firmware.
 
-Select the instructions depending on Espressif chip installed on your development board:
+## Comunicação serial
 
-- [ESP32 Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/stable/get-started/index.html)
-- [ESP32-S2 Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/get-started/index.html)
+| Parâmetro | Valor documentado |
+|---|---|
+| Interface | UART2 |
+| GPIO TX | GPIO 17 |
+| GPIO RX | GPIO 16 |
+| Baud rate | 921600 |
+| Formato | JSON delimitado por mensagem |
 
+A configuração da UART deve ser idêntica à do firmware de captura. Conecte TX ao RX do outro ESP32 e compartilhe o GND. Confirme a pinagem nos dois projetos antes de alimentar os dispositivos.
 
-## Example folder contents
+## MQTT
 
-The project **hello_world** contains one source file in C language [hello_world_main.c](main/hello_world_main.c). The file is located in folder [main](main).
+O receptor utiliza Wi-Fi para se conectar ao broker MQTT e encaminhar os dados. Os tópicos documentados são:
 
-ESP-IDF projects are built using CMake. The project build configuration is contained in `CMakeLists.txt` files that provide set of directives and instructions describing the project's source files and targets (executable, library, or both).
+- `wifi`: mensagens com metadados de quadros capturados;
+- `sniffer`: registro/identificação do dispositivo, de acordo com a implementação.
 
-Below is short explanation of remaining files in the project folder.
+O endereço do broker e as credenciais de rede devem ser configurados para o ambiente de execução. Evite armazenar senhas reais no repositório.
 
+## Requisitos
+
+- ESP32 receptor
+- Firmware de captura do repositório [sniffer-caso-uso-1](https://github.com/josevictoraraujorojas/sniffer-caso-uso-1)
+- Conexão UART entre os dois dispositivos
+- ESP-IDF instalado e configurado
+- Rede Wi-Fi e broker MQTT acessíveis
+
+## Compilação e gravação
+
+Com o ambiente ESP-IDF configurado, execute na raiz do projeto:
+
+```bash
+idf.py set-target esp32
+idf.py build
+idf.py -p PORTA flash monitor
 ```
-├── CMakeLists.txt
-├── pytest_hello_world.py      Python script used for automated testing
-├── main
-│   ├── CMakeLists.txt
-│   └── hello_world_main.c
-└── README.md                  This is the file you are currently reading
-```
 
-For more information on structure and contents of ESP-IDF projects, please refer to Section [Build System](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/build-system.html) of the ESP-IDF Programming Guide.
+Substitua `PORTA` pela porta serial correspondente ao receptor. Se o alvo já estiver definido, pule o comando `set-target`.
 
-## Troubleshooting
+## Integração com o TCC
 
-* Program upload failure
+Este projeto faz a ponte entre a aquisição no ESP32 sniffer e o fluxo MQTT consumido pelo backend. A aplicação pode associar as mensagens a dispositivos e locais e persistir os dados nos bancos utilizados pelo trabalho.
 
-    * Hardware connection is not correct: run `idf.py -p PORT monitor`, and reboot your board to see if there are any output logs.
-    * The baud rate for downloading is too high: lower your baud rate in the `menuconfig` menu, and try again.
+## Diagnóstico
 
-## Technical support and feedback
-
-Please use the following feedback channels:
-
-* For technical queries, go to the [esp32.com](https://esp32.com/) forum
-* For a feature request or bug report, create a [GitHub issue](https://github.com/espressif/esp-idf/issues)
-
-We will get back to you as soon as possible.
+- Se não houver mensagens, confira TX/RX cruzados, GND comum e baud rate.
+- Se a UART receber JSON incompleto, verifique o delimitador e o tamanho máximo do buffer nos dois firmwares.
+- Se o MQTT não publicar, confirme a conexão Wi-Fi, o endereço do broker e o nome do tópico.
