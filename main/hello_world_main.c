@@ -38,11 +38,13 @@ static const char *TAG = "SNIFFER_RECEPTOR";
 /* Tamanhos dos buffers */
 #define JSON_BUFFER_SIZE  1024
 #define MQTT_MESSAGE_SIZE 1200
+#define TOTAL_MENSAGENS_TESTE 100
 
 /* Variaveis globais */
 static char mac_dispositivo[18];
 static esp_mqtt_client_handle_t cliente_mqtt = NULL;
 static bool tarefa_uart_iniciada = false;
+static int mensagens_mqtt_publicadas = 0;
 
 /* Registra a tentativa e o resultado local da publicação MQTT. */
 static int publicar_mensagem_experimental(
@@ -58,6 +60,9 @@ static int publicar_mensagem_experimental(
         return -1;
     }
 
+    if (strcmp(topico, MQTT_TOPIC) == 0 && mensagens_mqtt_publicadas >= TOTAL_MENSAGENS_TESTE)
+        return -2;
+
     int mensagem_id = esp_mqtt_client_publish(
         cliente, topico, payload, 0, qos, 0
     );
@@ -71,6 +76,15 @@ static int publicar_mensagem_experimental(
     {
         ESP_LOGI(TAG, "[EXPERIMENTO][MQTT_ENVIO] topico=%s mensagem_id=%d qos=%d payload=%s",
                  topico, mensagem_id, qos, payload);
+    }
+
+    if (mensagem_id >= 0 && strcmp(topico, MQTT_TOPIC) == 0)
+    {
+        mensagens_mqtt_publicadas++;
+        ESP_LOGI(TAG, "[EXPERIMENTO][CONTAGEM] mensagens_mqtt=%d/%d",
+                 mensagens_mqtt_publicadas, TOTAL_MENSAGENS_TESTE);
+        if (mensagens_mqtt_publicadas == TOTAL_MENSAGENS_TESTE)
+            ESP_LOGI(TAG, "[EXPERIMENTO][FIM] total_mensagens_mqtt=%d", mensagens_mqtt_publicadas);
     }
 
     return mensagem_id;
@@ -326,6 +340,9 @@ static void processar_caractere_uart(
     bool *recebendo_json
 )
 {
+    if (mensagens_mqtt_publicadas >= TOTAL_MENSAGENS_TESTE)
+        return;
+
     if (caractere == '\r')
     {
         return;
@@ -396,7 +413,7 @@ static void tarefa_recepcao_uart(void *parametro)
     int contagem_chaves = 0;
     bool recebendo_json = false;
 
-    while (1)
+    while (mensagens_mqtt_publicadas < TOTAL_MENSAGENS_TESTE)
     {
         int tamanho = uart_read_bytes(
             UART_PORT,
@@ -421,6 +438,9 @@ static void tarefa_recepcao_uart(void *parametro)
             );
         }
     }
+
+    ESP_LOGI(TAG, "[EXPERIMENTO][TAREFA_ENCERRADA] total_mensagens_mqtt=%d", mensagens_mqtt_publicadas);
+    vTaskDelete(NULL);
 }
 
 
