@@ -1,22 +1,43 @@
-# Procedimento experimental — receptor UART e MQTT
+# Procedimento experimental — receptor UART e publicador MQTT
 
-## Objetivo
-Verificar o formato das mensagens publicadas no tópico wifi depois da recepção serial e da inclusão do MAC do receptor.
+O objetivo é acompanhar as mensagens capturadas pelo sniffer desde a recepção serial até a publicação no broker MQTT.
 
-## Execução
-Com o sniffer e o receptor conectados por UART e com ambos os firmwares em execução, capture os dados no broker MQTT:
+## 1. Abrir o monitor serial do receptor
 
-    mosquitto_sub -h HOST_DO_BROKER -p 1883 -t wifi > captura.jsonl
+Com o receptor conectado ao computador, execute no terminal ESP-IDF:
 
-Encerre com Ctrl+C e execute:
+```powershell
+idf.py -p COM6 monitor
+```
 
-    py tests\validar_experimento.py --autoteste
-    py tests\validar_experimento.py --arquivo captura.jsonl --saida resultado.json
+Substitua `COM6` pela porta do receptor. Quando um JSON completo chega pela UART, o firmware registra:
 
-O teste espera os campos gerados pelo sniffer e macAddress adicionado pelo receptor. Verifica formato dos três endereços MAC, campos numéricos, canal, RSSI e direção. Registros inválidos ou mensagens de erro fazem o comando retornar código diferente de zero.
+```text
+[EXPERIMENTO][UART_RECEBIDO] bytes=... payload={...}
+```
 
-## Protocolo sugerido
-Faça cinco repetições com o mesmo arranjo físico. Registre quantas mensagens o sniffer emitiu pela UART e quantas chegaram ao tópico wifi. Para comparar as contagens, use os logs dos dois dispositivos e a captura MQTT.
+Em seguida, se o JSON passar na validação, procure:
 
-## Limitação
-O script valida mensagens observadas no MQTT, mas não mede sozinho perdas na UART. Para isso, compare os contadores do sniffer e do receptor no mesmo intervalo, caso esses contadores estejam disponíveis nos logs.
+```text
+[EXPERIMENTO][MQTT_ENVIO] topico=wifi mensagem_id=... payload={...}
+```
+
+Esse registro mostra a mensagem encaminhada e o identificador retornado pela chamada local ao cliente MQTT. Se houver falha, procure `[EXPERIMENTO][MQTT_ENVIO_FALHA]`; mensagens que não passaram pela validação geram `[EXPERIMENTO][JSON_REJEITADO]`.
+
+## 2. Conferir o que chegou ao broker
+
+Em outro terminal, execute:
+
+```powershell
+mosquitto_sub -h HOST_DO_BROKER -p 1883 -t wifi -v
+```
+
+Troque o host pelo broker do experimento. Compare o JSON recebido no broker com o payload mostrado no log do receptor. Isso separa a recepção pela UART da publicação observada no broker.
+
+## 3. Conferir o backend e a persistência
+
+No console do backend do Caso de Uso 1, procure `[EXPERIMENTO][MQTT_RECEBIDO]`, `[EXPERIMENTO][PROCESSAMENTO_OK]`, `[EXPERIMENTO][INFLUX_PERSISTIDO]` e possíveis linhas de falha. O log de persistência informa o measurement, o bucket, o horário e os identificadores das entidades associadas.
+
+## Dados a registrar
+
+Em cada repetição, registre quadros enviados pelo sniffer, mensagens recebidas na UART do receptor, publicações no MQTT, mensagens recebidas pelo backend, registros persistidos e falhas. Não confunda o retorno local da função de publicação MQTT com a confirmação da gravação no banco. A persistência é verificada separadamente nos logs do backend e na consulta ao InfluxDB.
