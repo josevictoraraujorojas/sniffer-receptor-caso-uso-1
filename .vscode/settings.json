@@ -15,5 +15,6 @@
     "--query-driver=**",
     "--compile-commands-dir=c:\\Users\\Jose\\esspressif\\sniffer_receptor\\build"
   ],
-  "idf.flashType": "UART"
+  "idf.flashType": "UART",
+  "idf.port": "COM6"
 }

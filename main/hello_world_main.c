@@ -24,8 +24,8 @@
 #define UART_READ_BUFFER   256
 
 /* Configuracoes Wi-Fi */
-#define WIFI_SSID "IFMAKER"
-#define WIFI_PASS "12345678"
+#define WIFI_SSID "Rojas_wgo_fibra"
+#define WIFI_PASS "jr131415"
 
 /* Configuracoes MQTT */
 #define MQTT_BROKER_URI     "mqtt://192.168.137.31:1883"
