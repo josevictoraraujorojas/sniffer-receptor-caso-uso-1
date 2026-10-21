@@ -86,8 +86,7 @@ Crie a pasta de resultados se necessário: `New-Item -ItemType Directory -Force 
 ```powershell
 idf.py build
 idf.py -p COM6 flash
-Start-Transcript -Path "$HOME\TCC-Experimentos\03-receptor-serial.log"
-idf.py -p COM6 monitor
+idf.py -p COM6 monitor 2>&1 | Tee-Object -FilePath "C:\Users\Jose\TCC-Experimentos\01-pzem-serial.log"
 ```
 
 Substitua `COM6` pela porta do receptor. Encerre o monitor com `Ctrl+]` e execute `Stop-Transcript` quando retornar ao prompt. Em outro terminal, inicie a observação MQTT antes de executar os dispositivos:
